@@ -48,30 +48,40 @@
       <thead><tr><th></th><th>Date</th><th>Heure</th><th>Participants</th></tr></thead>
       <tbody id="slotsBody">
         <tr id="row0">
-          <td><input type="checkbox" id="s0" name="slot" value="35"></td>
-          <td>lun. 16 mars</td>
-          <td style="font-family:monospace;">10:00 – 11:00</td>
+          <td><input type="checkbox" id="s0" name="slot" value="40"></td>
+          <td>mar. 10 mars</td>
+          <td style="font-family:monospace;">14:00 – 15:00</td>
           <td id="chips0" style="font-size:0.75rem;color:#aaa;">—</td>
         </tr><tr id="row1">
-          <td><input type="checkbox" id="s1" name="slot" value="36"></td>
-          <td>mar. 17 mars</td>
-          <td style="font-family:monospace;">14:00 – 15:00</td>
+          <td><input type="checkbox" id="s1" name="slot" value="41"></td>
+          <td>mar. 10 mars</td>
+          <td style="font-family:monospace;">15:00 – 16:00</td>
           <td id="chips1" style="font-size:0.75rem;color:#aaa;">—</td>
         </tr><tr id="row2">
-          <td><input type="checkbox" id="s2" name="slot" value="37"></td>
-          <td>mar. 17 mars</td>
-          <td style="font-family:monospace;">15:00 – 16:00</td>
+          <td><input type="checkbox" id="s2" name="slot" value="35"></td>
+          <td>lun. 16 mars</td>
+          <td style="font-family:monospace;">10:00 – 11:00</td>
           <td id="chips2" style="font-size:0.75rem;color:#aaa;">—</td>
         </tr><tr id="row3">
-          <td><input type="checkbox" id="s3" name="slot" value="38"></td>
-          <td>mer. 18 mars</td>
-          <td style="font-family:monospace;">11:00 – 12:00</td>
+          <td><input type="checkbox" id="s3" name="slot" value="36"></td>
+          <td>mar. 17 mars</td>
+          <td style="font-family:monospace;">14:00 – 15:00</td>
           <td id="chips3" style="font-size:0.75rem;color:#aaa;">—</td>
         </tr><tr id="row4">
-          <td><input type="checkbox" id="s4" name="slot" value="39"></td>
+          <td><input type="checkbox" id="s4" name="slot" value="37"></td>
+          <td>mar. 17 mars</td>
+          <td style="font-family:monospace;">15:00 – 16:00</td>
+          <td id="chips4" style="font-size:0.75rem;color:#aaa;">—</td>
+        </tr><tr id="row5">
+          <td><input type="checkbox" id="s5" name="slot" value="38"></td>
+          <td>mer. 18 mars</td>
+          <td style="font-family:monospace;">11:00 – 12:00</td>
+          <td id="chips5" style="font-size:0.75rem;color:#aaa;">—</td>
+        </tr><tr id="row6">
+          <td><input type="checkbox" id="s6" name="slot" value="39"></td>
           <td>mer. 18 mars</td>
           <td style="font-family:monospace;">14:00 – 15:00</td>
-          <td id="chips4" style="font-size:0.75rem;color:#aaa;">—</td>
+          <td id="chips6" style="font-size:0.75rem;color:#aaa;">—</td>
         </tr>
       </tbody>
     </table>
@@ -95,7 +105,7 @@
 <script>
 const API_URL = 'https://suivi.gregoire13.fr/planif_api.php';
 const POLL_TOKEN = 'd5794cc874b0';
-const SLOT_IDS   = [35,36,37,38,39];
+const SLOT_IDS   = [40,41,35,36,37,38,39];
 
 async function loadExistingVotes() {
   try {
