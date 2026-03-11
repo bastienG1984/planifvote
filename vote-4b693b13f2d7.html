@@ -48,15 +48,10 @@
       <thead><tr><th></th><th>Date</th><th>Heure</th><th>Participants</th></tr></thead>
       <tbody id="slotsBody">
         <tr id="row0">
-          <td><input type="checkbox" id="s0" name="slot" value="26"></td>
-          <td>mer. 11 mars</td>
-          <td style="font-family:monospace;">14:00 – 15:00</td>
-          <td id="chips0" style="font-size:0.75rem;color:#aaa;">—</td>
-        </tr><tr id="row1">
-          <td><input type="checkbox" id="s1" name="slot" value="28"></td>
+          <td><input type="checkbox" id="s0" name="slot" value="28"></td>
           <td>jeu. 12 mars</td>
           <td style="font-family:monospace;">14:00 – 15:00</td>
-          <td id="chips1" style="font-size:0.75rem;color:#aaa;">—</td>
+          <td id="chips0" style="font-size:0.75rem;color:#aaa;">—</td>
         </tr>
       </tbody>
     </table>
@@ -80,7 +75,7 @@
 <script>
 const API_URL = 'https://suivi.gregoire13.fr/planif_api.php';
 const POLL_TOKEN = '4b693b13f2d7';
-const SLOT_IDS   = [26,28];
+const SLOT_IDS   = [28];
 
 async function loadExistingVotes() {
   try {
