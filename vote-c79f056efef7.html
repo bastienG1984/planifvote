@@ -52,11 +52,6 @@
           <td>mer. 18 mars</td>
           <td style="font-family:monospace;">11:00 – 12:00</td>
           <td id="chips0" style="font-size:0.75rem;color:#aaa;">—</td>
-        </tr><tr id="row1">
-          <td><input type="checkbox" id="s1" name="slot" value="58"></td>
-          <td>jeu. 19 mars</td>
-          <td style="font-family:monospace;">10:00 – 11:00</td>
-          <td id="chips1" style="font-size:0.75rem;color:#aaa;">—</td>
         </tr>
       </tbody>
     </table>
@@ -80,7 +75,7 @@
 <script>
 const API_URL = 'https://suivi.gregoire13.fr/planif_api.php';
 const POLL_TOKEN = 'c79f056efef7';
-const SLOT_IDS   = [56,58];
+const SLOT_IDS   = [56];
 
 async function loadExistingVotes() {
   try {
