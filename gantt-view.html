@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gantt — Suivi BG</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--color-bg:#f5f7fa;--color-surface:#fff;--color-surface-elevated:#f9fafb;--color-border:#e5e7eb;--color-text:#1f2937;--color-text-secondary:#6b7280;--color-text-tertiary:#9ca3af;--color-primary:#3b82f6;--font-display:'Bricolage Grotesque',sans-serif;--font-mono:'JetBrains Mono',monospace;--ROW:52px;--SIDEBAR:300px;--MONTH_H:40px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;font-family:var(--font-display);background:var(--color-bg);color:var(--color-text);}
+.header{height:58px;background:#fff;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;flex-shrink:0;}
+.header-title{font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:.5rem;}
+.badge{font-size:.65rem;font-weight:600;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;padding:.15rem .5rem;border-radius:20px;}
+.sync-info{font-size:.78rem;color:var(--color-text-secondary);}
+.body{flex:1;display:flex;overflow:hidden;height:calc(100vh - 58px);}
+.sidebar{width:var(--SIDEBAR);flex-shrink:0;border-right:1px solid var(--color-border);background:#fff;display:flex;flex-direction:column;overflow:hidden;}
+.sidebar-spacer{height:var(--MONTH_H);flex-shrink:0;border-bottom:1px solid var(--color-border);background:var(--color-surface-elevated);}
+.sidebar-rows{flex:1;overflow-y:auto;overflow-x:hidden;}
+.sidebar-rows::-webkit-scrollbar{width:4px;}
+.sidebar-rows::-webkit-scrollbar-thumb{background:var(--color-border);border-radius:2px;}
+.s-row{height:var(--ROW);border-bottom:1px solid #f0f0f0;display:flex;align-items:center;padding:0 14px;border-left:3px solid #e5e7eb;}
+.s-parent{background:var(--color-surface-elevated);}
+.s-child{padding-left:28px;}
+.s-row-inner{display:flex;flex-direction:column;gap:3px;min-width:0;width:100%;}
+.s-key{font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--color-primary);}
+.s-key-sub{color:var(--color-text-secondary);font-size:9px;}
+.s-title{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.s-title-bold{font-weight:700;}
+.s-meta{display:flex;align-items:center;gap:5px;}
+.s-pill{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:3px;}
+.s-date{font-family:var(--font-mono);font-size:9px;color:var(--color-text-tertiary);}
+.gantt-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.gantt-months-outer{height:var(--MONTH_H);flex-shrink:0;overflow-x:auto;overflow-y:hidden;border-bottom:1px solid var(--color-border);background:#fff;scrollbar-width:none;}
+.gantt-months-outer::-webkit-scrollbar{display:none;}
+.gantt-months-inner{display:flex;height:100%;white-space:nowrap;}
+.g-month{display:inline-flex;flex-direction:column;justify-content:center;padding:0 8px;border-right:1px solid var(--color-border);flex-shrink:0;}
+.g-month.cur{background:rgba(59,130,246,.05);}
+.g-month-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;}
+.g-month.cur .g-month-name{color:var(--color-primary);}
+.g-month-year{font-size:9px;color:var(--color-text-tertiary);font-family:var(--font-mono);}
+.gantt-bars-wrap{flex:1;overflow:auto;}
+.gantt-bars-wrap::-webkit-scrollbar{height:6px;width:6px;}
+.gantt-bars-wrap::-webkit-scrollbar-thumb{background:var(--color-border);border-radius:3px;}
+.gantt-bars-inner{position:relative;}
+.g-col{position:absolute;top:0;bottom:0;border-right:1px solid #f0f0f0;}
+.g-col.cur{background:rgba(59,130,246,.03);}
+.today-line{position:absolute;top:0;bottom:0;width:2px;background:#ef4444;z-index:4;pointer-events:none;}
+.today-tip{position:absolute;top:4px;left:5px;font-size:9px;font-family:var(--font-mono);color:#ef4444;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+.g-bar{position:absolute;border-radius:6px;display:flex;align-items:center;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.15);}
+.g-bar-fill{position:absolute;left:0;top:0;bottom:0;background:rgba(255,255,255,.2);border-radius:6px 0 0 6px;}
+.g-bar-label{position:relative;z-index:1;font-family:var(--font-mono);font-size:10px;font-weight:600;color:rgba(255,255,255,.95);padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.g-row-stripe:nth-child(odd){background:rgba(0,0,0,.012);}
+.readonly-banner{background:#fef3c7;border-bottom:1px solid #fcd34d;padding:.4rem 1.5rem;font-size:.78rem;color:#92400e;display:flex;align-items:center;gap:.5rem;flex-shrink:0;}
+</style>
+</head>
+<body style="display:flex;flex-direction:column;">
+<div class="header">
+    <div class="header-title">📊 Gantt <span class="badge">VISUALISATION</span></div>
+    <div class="sync-info">Mis à jour le 14 avril 2026 à 09:37</div>
+</div>
+<div class="readonly-banner">👁 Mode lecture seule — données en date du 14 avril 2026</div>
+<div class="body">
+    <div class="sidebar">
+        <div class="sidebar-spacer"></div>
+        <div class="sidebar-rows"><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2503')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2503</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2503','AIGLE FRANCE 70')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="AIGLE FRANCE 70">AIGLE FRANCE 70</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">ATT FONCTIONNEL</span>
+                        <span class="s-date">2026-03-06</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2505')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2505</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2505','ANTOINE DISTRIBUTION')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="ANTOINE DISTRIBUTION">ANTOINE DISTRIBUTION</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2026-03-10</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:pointer;" onclick="toggleExpand('PROD-1392')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1392</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1392','BERBERAT PERE ET FILS')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="BERBERAT PERE ET FILS">BERBERAT PERE ET FILS</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">Déployé Passerelle</span>
+                        <span class="s-date">2024-08-08</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2549')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2549</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2549','BERT 31')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="BERT 31">BERT 31</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2026-04-03</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2380')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2380</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Bastien GREGOIRE" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2380','BTL (changement de TMS)')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="BTL (changement de TMS)">BTL (changement de TMS)</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2026-01-12</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2253')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2253</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2253','CAP SOLUTION')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="CAP SOLUTION">CAP SOLUTION</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2025-10-13</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1404')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1404</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1404','CEVA LOGISTICS ORLEANS')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="CEVA LOGISTICS ORLEANS">CEVA LOGISTICS ORLEANS</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2024-08-21</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2192')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2192</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Bastien GREGOIRE" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2192','CHANNEL FRET (MAJ ECMR)')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="CHANNEL FRET (MAJ ECMR)">CHANNEL FRET (MAJ ECMR)</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2025-09-08</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1190')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1190</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1190','CILOMATE TRANSPORTS')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="CILOMATE TRANSPORTS">CILOMATE TRANSPORTS</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2024-06-20</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1329')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1329</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1329','DELISLE LOGISTIQUE')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="DELISLE LOGISTIQUE">DELISLE LOGISTIQUE</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2024-07-10</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-322')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-322</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-322','DUPESSEY &amp; CO')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="DUPESSEY &amp; CO">DUPESSEY &amp; CO</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2023-12-18</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2537')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2537</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2537','FRANCE TRANSPORT')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="FRANCE TRANSPORT">FRANCE TRANSPORT</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">ATT FONCTIONNEL</span>
+                        <span class="s-date">2026-03-31</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1552')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1552</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1552','GEODIS BM SAVOIE')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="GEODIS BM SAVOIE">GEODIS BM SAVOIE</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2024-10-04</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2400')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2400</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Anthony Rizzarello" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2400','GREEN OUTSIDE')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="GREEN OUTSIDE">GREEN OUTSIDE</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2026-01-20</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2127')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2127</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2127','GREILSAMMER')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="GREILSAMMER">GREILSAMMER</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2025-06-04</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2501')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2501</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Bastien GREGOIRE" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2501','GROUPE SF')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="GROUPE SF">GROUPE SF</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2026-03-06</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1343')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1343</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1343','GUY CASSET SA')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="GUY CASSET SA">GUY CASSET SA</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2024-07-23</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2444')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2444</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2444','GUYAMIER')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="GUYAMIER">GUYAMIER</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2026-02-06</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1575')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1575</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1575','KLINZING')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="KLINZING">KLINZING</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2024-10-11</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2507')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2507</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2507','L.I.T. SPEDITIONS GmbH')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="L.I.T. SPEDITIONS GmbH">L.I.T. SPEDITIONS GmbH</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2026-03-10</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:default;" onclick="">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-790</span>
+                        
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-790','LACHAL SOLUTIONS')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="LACHAL SOLUTIONS">LACHAL SOLUTIONS</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2024-03-07</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-163')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-163</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-163','MEGEVAND FRERES')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="MEGEVAND FRERES">MEGEVAND FRERES</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2023-10-11</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2113')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2113</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Bastien GREGOIRE" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2113','MITHIEUX (Nouveau TMS)')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="MITHIEUX (Nouveau TMS)">MITHIEUX (Nouveau TMS)</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2025-05-22</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-922')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-922</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-922','MORIN TRANSPORTS')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="MORIN TRANSPORTS">MORIN TRANSPORTS</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2024-04-16</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1346')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1346</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1346','ORTOLLAND')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="ORTOLLAND">ORTOLLAND</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2024-07-23</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2489')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2489</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2489','OSTRAL')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="OSTRAL">OSTRAL</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2026-02-27</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:pointer;" onclick="toggleExpand('PROD-664')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-664</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-664','PAUL LIBBRA LOGISTIQUE - 21')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="PAUL LIBBRA LOGISTIQUE - 21">PAUL LIBBRA LOGISTIQUE - 21</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">Déployé Passerelle</span>
+                        <span class="s-date">2024-02-21</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2411')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2411</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2411','PICARD ET FILS')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="PICARD ET FILS">PICARD ET FILS</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2026-01-27</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:pointer;" onclick="toggleExpand('PROD-1862')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1862</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Bastien GREGOIRE" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1862','POSTIC / TSO (NEW TMS)')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="POSTIC / TSO (NEW TMS)">POSTIC / TSO (NEW TMS)</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">Déployé Passerelle</span>
+                        <span class="s-date">2025-01-14</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2304')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2304</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Anthony Rizzarello" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2304','PROXIMY')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="PROXIMY">PROXIMY</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2025-11-24</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:pointer;" onclick="toggleExpand('PROD-2406')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2406</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2406','Perrenot ROBINEAU 72')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="Perrenot ROBINEAU 72">Perrenot ROBINEAU 72</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">Déployé Passerelle</span>
+                        <span class="s-date">2026-01-26</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:pointer;" onclick="toggleExpand('PROD-2264')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2264</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Bastien GREGOIRE" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2264','ROUILLE COULON (changement de TMS)')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="ROUILLE COULON (changement de TMS)">ROUILLE COULON (changement de TMS)</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">Déployé Passerelle</span>
+                        <span class="s-date">2025-10-20</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2407')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2407</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2407','SARL TRANSPORTS LANDRY')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="SARL TRANSPORTS LANDRY">SARL TRANSPORTS LANDRY</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2026-01-26</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1253')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1253</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1253','SBG FRANCE TRANSPORTS')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="SBG FRANCE TRANSPORTS">SBG FRANCE TRANSPORTS</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2024-06-25</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1047')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1047</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Bastien GREGOIRE" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1047','STEF')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="STEF">STEF</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">ATT FONCTIONNEL</span>
+                        <span class="s-date">2024-05-07</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2365')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2365</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2365','THEVENET')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="THEVENET">THEVENET</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2026-01-05</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2195')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2195</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2195','TRANSALLIANCE DISTRI NORD ILE FRANCE TDN')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSALLIANCE DISTRI NORD ILE FRANCE TDN">TRANSALLIANCE DISTRI NORD ILE FRANCE TDN</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2025-09-08</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2181')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2181</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2181','TRANSALLIANCE INTER MODAL')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSALLIANCE INTER MODAL">TRANSALLIANCE INTER MODAL</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2025-08-11</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2550')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2550</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2550','TRANSPORT GRAILLOT BERT')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSPORT GRAILLOT BERT">TRANSPORT GRAILLOT BERT</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2026-04-03</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2053')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2053</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2053','TRANSPORTS A. BLANC')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSPORTS A. BLANC">TRANSPORTS A. BLANC</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2025-04-22</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:default;" onclick="">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2350</span>
+                        
+                        <span title="Bastien GREGOIRE" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2350','TRANSPORTS AUTO BRUNIER SA pour le client COMPAGNIE DES SALINS DU MIDI ET DES SALINES DE L'EST')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSPORTS AUTO BRUNIER SA pour le client COMPAGNIE DES SALINS DU MIDI ET DES SALINES DE L'EST">TRANSPORTS AUTO BRUNIER SA pour le client COMPAGNIE DES SALINS DU MIDI ET DES SALINES DE L'EST</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">Déployé Passerelle</span>
+                        <span class="s-date">2025-12-11</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:default;" onclick="">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2433</span>
+                        
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2433','TRANSPORTS CONTIGNON')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSPORTS CONTIGNON">TRANSPORTS CONTIGNON</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">Déployé Passerelle</span>
+                        <span class="s-date">2026-01-29</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1360')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1360</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1360','TRANSPORTS COUE 53')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSPORTS COUE 53">TRANSPORTS COUE 53</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2024-07-23</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:pointer;" onclick="toggleExpand('PROD-2453')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2453</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2453','TRANSPORTS DUPAS LEBEDA')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSPORTS DUPAS LEBEDA">TRANSPORTS DUPAS LEBEDA</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">Déployé Passerelle</span>
+                        <span class="s-date">2026-02-09</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2121')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2121</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2121','TRANSPORTS GABORIT SARL')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSPORTS GABORIT SARL">TRANSPORTS GABORIT SARL</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2025-06-04</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-1837')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-1837</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-1837','TRANSPORTS PREVOST')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSPORTS PREVOST">TRANSPORTS PREVOST</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">DEV PASSERELLE</span>
+                        <span class="s-date">2025-01-06</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2446')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2446</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2446','TRANSPORTS SIMONIN')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSPORTS SIMONIN">TRANSPORTS SIMONIN</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2026-02-06</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:pointer;" onclick="toggleExpand('PROD-2272')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2272</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2272','TRANSPORTS THENOT')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="TRANSPORTS THENOT">TRANSPORTS THENOT</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">Déployé Passerelle</span>
+                        <span class="s-date">2025-11-03</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:default;" onclick="">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2513</span>
+                        
+                        <span title="Bastien GREGOIRE" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2513','Transports Alainé pour le client Roquette')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="Transports Alainé pour le client Roquette">Transports Alainé pour le client Roquette</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">Déployé Passerelle</span>
+                        <span class="s-date">2026-03-13</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#15803d;cursor:pointer;" onclick="toggleExpand('PROD-164')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-164</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-164','WEBER LOGISTIQUE')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="WEBER LOGISTIQUE">WEBER LOGISTIQUE</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#15803d22;color:#15803d">DEV PASSERELLE</span>
+                        <span class="s-date">2026-01-30</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2302')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2302</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2302','WOEHL ET COMPAGNIE STRASBOURG')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="WOEHL ET COMPAGNIE STRASBOURG">WOEHL ET COMPAGNIE STRASBOURG</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2025-11-24</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2327')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2327</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Mathilde Sagrange" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2327','WOEHL ET COMPAGNIE WISSEMBOURG')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="WOEHL ET COMPAGNIE WISSEMBOURG">WOEHL ET COMPAGNIE WISSEMBOURG</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2025-11-26</span>
+                    </div>
+                </div>
+            </div><div class="s-row s-parent" style="border-left-color:#1d4ed8;cursor:pointer;" onclick="toggleExpand('PROD-2262')">
+                <div class="s-row-inner">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <span class="s-key">PROD-2262</span>
+                        <span style="font-size:10px;color:var(--color-text-secondary)">▸</span>
+                        <span title="Belinda TOPOREK" style="cursor:default;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;">👤</span>
+                        <button onclick="event.stopPropagation();hideProject('PROD-2262','XPO VRAC FRANCE 69')" title="Masquer ce projet" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--color-text-tertiary);font-size:12px;padding:0 2px;line-height:1;">✕</button>
+                    </div>
+                    <div class="s-title s-title-bold" title="XPO VRAC FRANCE 69">XPO VRAC FRANCE 69</div>
+                    <div class="s-meta">
+                        <span class="s-pill" style="background:#1d4ed822;color:#1d4ed8">CONTRACTUALISATION</span>
+                        <span class="s-date">2025-10-16</span>
+                    </div>
+                </div>
+            </div></div>
+    </div>
+    <div class="gantt-panel">
+        <div class="gantt-months-outer" id="mo"><div class="gantt-months-inner" style="width:1442px"><div class="g-month" style="width: 434px; min-width: 434px;"><span class="g-month-name">janvier</span><span class="g-month-year">2026</span></div><div class="g-month" style="width: 392px; min-width: 392px;"><span class="g-month-name">février</span><span class="g-month-year">2026</span></div><div class="g-month" style="width: 434px; min-width: 434px;"><span class="g-month-name">mars</span><span class="g-month-year">2026</span></div><div class="g-month cur" style="width: 420px; min-width: 420px;"><span class="g-month-name">avril</span><span class="g-month-year">2026</span></div></div></div>
+        <div class="gantt-bars-wrap" id="bw">
+            <div class="gantt-bars-inner" style="width:1442px;height:2756px"><div class="g-col" style="left: 0px; width: 434px;"></div><div class="g-col" style="left: 434px; width: 392px;"></div><div class="g-col" style="left: 826px; width: 434px;"></div><div class="g-col cur" style="left: 1260px; width: 420px;"></div><div class="g-row-stripe" style="top: 0px; height: 52px;"></div><div class="g-row-stripe" style="top: 52px; height: 52px;"></div><div class="g-row-stripe" style="top: 104px; height: 52px;"></div><div class="g-row-stripe" style="top: 156px; height: 52px;"></div><div class="g-row-stripe" style="top: 208px; height: 52px;"></div><div class="g-row-stripe" style="top: 260px; height: 52px;"></div><div class="g-row-stripe" style="top: 312px; height: 52px;"></div><div class="g-row-stripe" style="top: 364px; height: 52px;"></div><div class="g-row-stripe" style="top: 416px; height: 52px;"></div><div class="g-row-stripe" style="top: 468px; height: 52px;"></div><div class="g-row-stripe" style="top: 520px; height: 52px;"></div><div class="g-row-stripe" style="top: 572px; height: 52px;"></div><div class="g-row-stripe" style="top: 624px; height: 52px;"></div><div class="g-row-stripe" style="top: 676px; height: 52px;"></div><div class="g-row-stripe" style="top: 728px; height: 52px;"></div><div class="g-row-stripe" style="top: 780px; height: 52px;"></div><div class="g-row-stripe" style="top: 832px; height: 52px;"></div><div class="g-row-stripe" style="top: 884px; height: 52px;"></div><div class="g-row-stripe" style="top: 936px; height: 52px;"></div><div class="g-row-stripe" style="top: 988px; height: 52px;"></div><div class="g-row-stripe" style="top: 1040px; height: 52px;"></div><div class="g-row-stripe" style="top: 1092px; height: 52px;"></div><div class="g-row-stripe" style="top: 1144px; height: 52px;"></div><div class="g-row-stripe" style="top: 1196px; height: 52px;"></div><div class="g-row-stripe" style="top: 1248px; height: 52px;"></div><div class="g-row-stripe" style="top: 1300px; height: 52px;"></div><div class="g-row-stripe" style="top: 1352px; height: 52px;"></div><div class="g-row-stripe" style="top: 1404px; height: 52px;"></div><div class="g-row-stripe" style="top: 1456px; height: 52px;"></div><div class="g-row-stripe" style="top: 1508px; height: 52px;"></div><div class="g-row-stripe" style="top: 1560px; height: 52px;"></div><div class="g-row-stripe" style="top: 1612px; height: 52px;"></div><div class="g-row-stripe" style="top: 1664px; height: 52px;"></div><div class="g-row-stripe" style="top: 1716px; height: 52px;"></div><div class="g-row-stripe" style="top: 1768px; height: 52px;"></div><div class="g-row-stripe" style="top: 1820px; height: 52px;"></div><div class="g-row-stripe" style="top: 1872px; height: 52px;"></div><div class="g-row-stripe" style="top: 1924px; height: 52px;"></div><div class="g-row-stripe" style="top: 1976px; height: 52px;"></div><div class="g-row-stripe" style="top: 2028px; height: 52px;"></div><div class="g-row-stripe" style="top: 2080px; height: 52px;"></div><div class="g-row-stripe" style="top: 2132px; height: 52px;"></div><div class="g-row-stripe" style="top: 2184px; height: 52px;"></div><div class="g-row-stripe" style="top: 2236px; height: 52px;"></div><div class="g-row-stripe" style="top: 2288px; height: 52px;"></div><div class="g-row-stripe" style="top: 2340px; height: 52px;"></div><div class="g-row-stripe" style="top: 2392px; height: 52px;"></div><div class="g-row-stripe" style="top: 2444px; height: 52px;"></div><div class="g-row-stripe" style="top: 2496px; height: 52px;"></div><div class="g-row-stripe" style="top: 2548px; height: 52px;"></div><div class="g-row-stripe" style="top: 2600px; height: 52px;"></div><div class="g-row-stripe" style="top: 2652px; height: 52px;"></div><div class="g-row-stripe" style="top: 2704px; height: 52px;"></div><div class="today-line" style="left: 1441px;"><span class="today-tip">Aujourd'hui</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2503&quot;,&quot;sum&quot;:&quot;AIGLE FRANCE 70&quot;,&quot;st&quot;:&quot;ATT FONCTIONNEL&quot;,&quot;s&quot;:&quot;2026-03-06&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 896px; width: 545px; top: 12px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 294px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 294px; width: 251px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2503</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2505&quot;,&quot;sum&quot;:&quot;ANTOINE DISTRIBUTION&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2026-03-10&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 952px; width: 489px; top: 64px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 489px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2505</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1392&quot;,&quot;sum&quot;:&quot;BERBERAT PERE ET FILS&quot;,&quot;st&quot;:&quot;Déployé Passerelle&quot;,&quot;s&quot;:&quot;2024-08-08&quot;,&quot;e&quot;:&quot;2026-02-25&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 770px; top: 116px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(21, 128, 61);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 770px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1392</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2549&quot;,&quot;sum&quot;:&quot;BERT 31&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2026-04-03&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 1287px; width: 154px; top: 168px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 154px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2549</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2380&quot;,&quot;sum&quot;:&quot;BTL (changement de TMS)&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2026-01-12&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 154px; width: 1287px; top: 220px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1287px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2380</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2253&quot;,&quot;sum&quot;:&quot;CAP SOLUTION&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2025-10-13&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 272px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2253</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1404&quot;,&quot;sum&quot;:&quot;CEVA LOGISTICS ORLEANS&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2024-08-21&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 324px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1404</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2192&quot;,&quot;sum&quot;:&quot;CHANNEL FRET (MAJ ECMR)&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2025-09-08&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 376px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2192</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1190&quot;,&quot;sum&quot;:&quot;CILOMATE TRANSPORTS&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2024-06-20&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 428px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1190</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1329&quot;,&quot;sum&quot;:&quot;DELISLE LOGISTIQUE&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2024-07-10&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 480px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1329</span></div><div data-t="{&quot;key&quot;:&quot;PROD-322&quot;,&quot;sum&quot;:&quot;DUPESSEY &amp; CO&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2023-12-18&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 532px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-322</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2537&quot;,&quot;sum&quot;:&quot;FRANCE TRANSPORT&quot;,&quot;st&quot;:&quot;ATT FONCTIONNEL&quot;,&quot;s&quot;:&quot;2026-03-31&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 1245px; width: 196px; top: 584px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 98px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 98px; width: 98px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2537</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1552&quot;,&quot;sum&quot;:&quot;GEODIS BM SAVOIE&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2024-10-04&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 636px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1552</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2400&quot;,&quot;sum&quot;:&quot;GREEN OUTSIDE&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2026-01-20&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 266px; width: 1175px; top: 688px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 42px; width: 42px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 84px; width: 1091px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2400</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2127&quot;,&quot;sum&quot;:&quot;GREILSAMMER&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2025-06-04&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 740px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2127</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2501&quot;,&quot;sum&quot;:&quot;GROUPE SF&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2026-03-06&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 896px; width: 545px; top: 792px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 196px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 196px; width: 251px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 447px; width: 98px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2501</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1343&quot;,&quot;sum&quot;:&quot;GUY CASSET SA&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2024-07-23&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 844px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1064px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 1064px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 1064px; width: 377px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1343</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2444&quot;,&quot;sum&quot;:&quot;GUYAMIER&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2026-02-06&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 504px; width: 937px; top: 896px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 937px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2444</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1575&quot;,&quot;sum&quot;:&quot;KLINZING&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2024-10-11&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 948px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1575</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2507&quot;,&quot;sum&quot;:&quot;L.I.T. SPEDITIONS GmbH&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2026-03-10&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 952px; width: 489px; top: 1000px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 489px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2507</span></div><div class="g-bar" data-t="{&quot;key&quot;:&quot;PROD-790&quot;,&quot;sum&quot;:&quot;LACHAL SOLUTIONS&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2024-03-07&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="left: 0px; width: 1441px; top: 1052px; height: 28px; background: rgb(29, 78, 216); border-radius: 0px 6px 6px 0px; border-left: 3px solid rgba(255, 255, 255, 0.5); cursor: pointer;">
+            
+            <span class="g-bar-label">◀  PROD-790</span>
+        </div><div data-t="{&quot;key&quot;:&quot;PROD-163&quot;,&quot;sum&quot;:&quot;MEGEVAND FRERES&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2023-10-11&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 1104px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-163</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2113&quot;,&quot;sum&quot;:&quot;MITHIEUX (Nouveau TMS)&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2025-05-22&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 1156px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2113</span></div><div data-t="{&quot;key&quot;:&quot;PROD-922&quot;,&quot;sum&quot;:&quot;MORIN TRANSPORTS&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2024-04-16&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 1208px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 854px; width: 587px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-922</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1346&quot;,&quot;sum&quot;:&quot;ORTOLLAND&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2024-07-23&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 1260px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 742px; width: 699px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1346</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2489&quot;,&quot;sum&quot;:&quot;OSTRAL&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2026-02-27&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 798px; width: 643px; top: 1312px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 238px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 238px; width: 98px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 336px; width: 307px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2489</span></div><div data-t="{&quot;key&quot;:&quot;PROD-664&quot;,&quot;sum&quot;:&quot;PAUL LIBBRA LOGISTIQUE - 21&quot;,&quot;st&quot;:&quot;Déployé Passerelle&quot;,&quot;s&quot;:&quot;2024-02-21&quot;,&quot;e&quot;:&quot;2026-03-19&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1078px; top: 1364px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(21, 128, 61);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1078px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-664</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2411&quot;,&quot;sum&quot;:&quot;PICARD ET FILS&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2026-01-27&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 364px; width: 1077px; top: 1416px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1077px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2411</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1862&quot;,&quot;sum&quot;:&quot;POSTIC / TSO (NEW TMS)&quot;,&quot;st&quot;:&quot;Déployé Passerelle&quot;,&quot;s&quot;:&quot;2025-01-14&quot;,&quot;e&quot;:&quot;2026-04-14&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 1468px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(21, 128, 61);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1245px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1862</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2304&quot;,&quot;sum&quot;:&quot;PROXIMY&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2025-11-24&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 1520px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 70px; width: 84px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 154px; width: 1287px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2304</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2406&quot;,&quot;sum&quot;:&quot;Perrenot ROBINEAU 72&quot;,&quot;st&quot;:&quot;Déployé Passerelle&quot;,&quot;s&quot;:&quot;2026-01-26&quot;,&quot;e&quot;:&quot;2026-02-25&quot;,&quot;p&quot;:0}" style="position: absolute; left: 350px; width: 420px; top: 1572px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(21, 128, 61);"><div style="position: absolute; left: 28px; width: 14px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 42px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 42px; width: 378px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2406</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2264&quot;,&quot;sum&quot;:&quot;ROUILLE COULON (changement de TMS)&quot;,&quot;st&quot;:&quot;Déployé Passerelle&quot;,&quot;s&quot;:&quot;2025-10-20&quot;,&quot;e&quot;:&quot;2026-04-03&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1287px; top: 1624px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(21, 128, 61);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1287px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2264</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2407&quot;,&quot;sum&quot;:&quot;SARL TRANSPORTS LANDRY&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2026-01-26&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 350px; width: 1091px; top: 1676px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1091px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2407</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1253&quot;,&quot;sum&quot;:&quot;SBG FRANCE TRANSPORTS&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2024-06-25&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 1728px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 280px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1253</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1047&quot;,&quot;sum&quot;:&quot;STEF&quot;,&quot;st&quot;:&quot;ATT FONCTIONNEL&quot;,&quot;s&quot;:&quot;2024-05-07&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 1780px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 1162px; width: 279px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1047</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2365&quot;,&quot;sum&quot;:&quot;THEVENET&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2026-01-05&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 56px; width: 1385px; top: 1832px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 112px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 112px; width: 308px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 420px; width: 965px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2365</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2195&quot;,&quot;sum&quot;:&quot;TRANSALLIANCE DISTRI NORD ILE FRANCE TDN&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2025-09-08&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 1884px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2195</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2181&quot;,&quot;sum&quot;:&quot;TRANSALLIANCE INTER MODAL&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2025-08-11&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 1936px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2181</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2550&quot;,&quot;sum&quot;:&quot;TRANSPORT GRAILLOT BERT&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2026-04-03&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 1287px; width: 154px; top: 1988px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 154px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2550</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2053&quot;,&quot;sum&quot;:&quot;TRANSPORTS A. BLANC&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2025-04-22&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 2040px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2053</span></div><div class="g-bar" data-t="{&quot;key&quot;:&quot;PROD-2350&quot;,&quot;sum&quot;:&quot;TRANSPORTS AUTO BRUNIER SA pour le client COMPAGNIE DES SALINS DU MIDI ET DES SALINES DE L'EST&quot;,&quot;st&quot;:&quot;Déployé Passerelle&quot;,&quot;s&quot;:&quot;2025-12-11&quot;,&quot;e&quot;:&quot;2026-02-12&quot;,&quot;p&quot;:100}" style="left: 0px; width: 588px; top: 2092px; height: 28px; background: rgb(21, 128, 61); border-radius: 0px 6px 6px 0px; border-left: 3px solid rgba(255, 255, 255, 0.5); cursor: pointer;">
+            
+            <span class="g-bar-label">◀  PROD-2350</span>
+        </div><div class="g-bar" data-t="{&quot;key&quot;:&quot;PROD-2433&quot;,&quot;sum&quot;:&quot;TRANSPORTS CONTIGNON&quot;,&quot;st&quot;:&quot;Déployé Passerelle&quot;,&quot;s&quot;:&quot;2026-01-29&quot;,&quot;e&quot;:&quot;2026-02-03&quot;,&quot;p&quot;:100}" style="left: 392px; width: 70px; top: 2144px; height: 28px; background: rgb(21, 128, 61); cursor: pointer;">
+            
+            <span class="g-bar-label"> PROD-2433</span>
+        </div><div data-t="{&quot;key&quot;:&quot;PROD-1360&quot;,&quot;sum&quot;:&quot;TRANSPORTS COUE 53&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2024-07-23&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 2196px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1360</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2453&quot;,&quot;sum&quot;:&quot;TRANSPORTS DUPAS LEBEDA&quot;,&quot;st&quot;:&quot;Déployé Passerelle&quot;,&quot;s&quot;:&quot;2026-02-09&quot;,&quot;e&quot;:&quot;2026-04-13&quot;,&quot;p&quot;:0}" style="position: absolute; left: 546px; width: 881px; top: 2248px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(21, 128, 61);"><div style="position: absolute; left: 0px; width: 112px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 112px; width: 112px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 224px; width: 657px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2453</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2121&quot;,&quot;sum&quot;:&quot;TRANSPORTS GABORIT SARL&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2025-06-04&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 2300px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2121</span></div><div data-t="{&quot;key&quot;:&quot;PROD-1837&quot;,&quot;sum&quot;:&quot;TRANSPORTS PREVOST&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2025-01-06&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 2352px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-1837</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2446&quot;,&quot;sum&quot;:&quot;TRANSPORTS SIMONIN&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2026-02-06&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 504px; width: 937px; top: 2404px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 937px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-2446</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2272&quot;,&quot;sum&quot;:&quot;TRANSPORTS THENOT&quot;,&quot;st&quot;:&quot;Déployé Passerelle&quot;,&quot;s&quot;:&quot;2025-11-03&quot;,&quot;e&quot;:&quot;2026-02-25&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 770px; top: 2456px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(21, 128, 61);"><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 0px; width: 2px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 0px; width: 770px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2272</span></div><div class="g-bar" data-t="{&quot;key&quot;:&quot;PROD-2513&quot;,&quot;sum&quot;:&quot;Transports Alainé pour le client Roquette&quot;,&quot;st&quot;:&quot;Déployé Passerelle&quot;,&quot;s&quot;:&quot;2026-03-13&quot;,&quot;e&quot;:&quot;2026-03-23&quot;,&quot;p&quot;:100}" style="left: 994px; width: 140px; top: 2508px; height: 28px; background: rgb(21, 128, 61); cursor: pointer;">
+            
+            <span class="g-bar-label"> PROD-2513</span>
+        </div><div data-t="{&quot;key&quot;:&quot;PROD-164&quot;,&quot;sum&quot;:&quot;WEBER LOGISTIQUE&quot;,&quot;st&quot;:&quot;DEV PASSERELLE&quot;,&quot;s&quot;:&quot;2026-01-30&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 406px; width: 1035px; top: 2560px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 630px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><div style="position: absolute; left: 630px; width: 14px; bottom: 0px; height: 6px; background: rgb(249, 115, 22);"></div><div style="position: absolute; left: 644px; width: 391px; bottom: 0px; height: 6px; background: rgb(185, 28, 28);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">PROD-164</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2302&quot;,&quot;sum&quot;:&quot;WOEHL ET COMPAGNIE STRASBOURG&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2025-11-24&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 2612px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2302</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2327&quot;,&quot;sum&quot;:&quot;WOEHL ET COMPAGNIE WISSEMBOURG&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2025-11-26&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 2664px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2327</span></div><div data-t="{&quot;key&quot;:&quot;PROD-2262&quot;,&quot;sum&quot;:&quot;XPO VRAC FRANCE 69&quot;,&quot;st&quot;:&quot;CONTRACTUALISATION&quot;,&quot;s&quot;:&quot;2025-10-16&quot;,&quot;e&quot;:&quot;?&quot;,&quot;p&quot;:0}" style="position: absolute; left: 0px; width: 1441px; top: 2716px; height: 28px; border-radius: 6px; overflow: hidden; cursor: pointer; box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px; background: rgb(29, 78, 216);"><div style="position: absolute; left: 0px; width: 1441px; bottom: 0px; height: 6px; background: rgb(236, 72, 153);"></div><span style="position: absolute; inset: 0px; display: flex; align-items: center; padding: 0px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: rgba(255, 255, 255, 0.95); pointer-events: none; z-index: 2; text-shadow: rgba(0, 0, 0, 0.5) 0px 1px 3px;">◀ PROD-2262</span></div></div>
+        </div>
+    </div>
+</div>
+<script>
+const bw=document.getElementById('bw'), mo=document.getElementById('mo');
+const sr=document.querySelector('.sidebar-rows');
+bw.onscroll=()=>{ mo.scrollLeft=bw.scrollLeft; sr.scrollTop=bw.scrollTop; };
+sr.onscroll=()=>{ bw.scrollTop=sr.scrollTop; };
+// Scroll to today line
+const tl=document.querySelector('.today-line');
+if(tl) bw.scrollLeft=Math.max(0,parseInt(tl.style.left)-200);
+</script>
+</body></html>
