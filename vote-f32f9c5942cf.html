@@ -40,45 +40,21 @@
   </div>
   <div class="body" id="voteBody">
     
-    <p class="intro">Sélectionnez les créneaux qui vous conviennent, puis envoyez votre réponse.</p>
-    <div id="existingVotes" style="display:none;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:0.6rem 0.85rem;margin-bottom:0.85rem;font-size:0.78rem;color:#92400e;">
-      <strong>👥 Votes existants :</strong> <span id="existingVotesSummary"></span>
-    </div>
-    <table>
-      <thead><tr><th></th><th>Date</th><th>Heure</th><th>Participants</th></tr></thead>
-      <tbody id="slotsBody">
-        <tr id="row0">
-          <td><input type="checkbox" id="s0" name="slot" value="132"></td>
-          <td>mar. 21 avr.</td>
-          <td style="font-family:monospace;">10:00 – 11:00</td>
-          <td id="chips0" style="font-size:0.75rem;color:#aaa;">—</td>
-        </tr><tr id="row1">
-          <td><input type="checkbox" id="s1" name="slot" value="133"></td>
-          <td>mar. 21 avr.</td>
-          <td style="font-family:monospace;">16:00 – 17:00</td>
-          <td id="chips1" style="font-size:0.75rem;color:#aaa;">—</td>
-        </tr><tr id="row2">
-          <td><input type="checkbox" id="s2" name="slot" value="134"></td>
-          <td>mer. 22 avr.</td>
-          <td style="font-family:monospace;">10:00 – 11:00</td>
-          <td id="chips2" style="font-size:0.75rem;color:#aaa;">—</td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="fl">Votre nom *</label>
-        <input type="text" class="fi" id="vName" placeholder="Jean Dupont">
+    <div style="text-align:center;padding:2rem 1rem;">
+      <div style="font-size:3rem;margin-bottom:1rem;">🔒</div>
+      <div style="font-size:1.1rem;font-weight:600;color:#374151;margin-bottom:0.5rem;">Ce sondage est clôturé</div>
+      
+      <div style="margin:1rem auto;max-width:340px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:1rem 1.25rem;">
+        <div style="font-size:0.7rem;color:#15803d;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">✅ Créneau retenu</div>
+        <div style="font-size:1rem;font-weight:700;color:#14532d;">mar. 21 avr. · 16:00–17:00</div>
       </div>
-      <div class="form-group">
-        <label class="fl">Email *</label>
-        <input type="email" class="fi" id="vEmail" placeholder="jean@exemple.fr">
-      </div>
+      
+      <div style="font-size:0.85rem;color:#6b7280;">Les votes ne sont plus acceptés.</div>
     </div>
     
   </div>
   <div class="footer">
-    <button class="btn" onclick="send()">✓ Envoyer ma disponibilité</button>
+    
     <div class="thank-you" id="ty">✓ Merci ! Votre réponse a bien été enregistrée.</div>
   </div>
 </div>
