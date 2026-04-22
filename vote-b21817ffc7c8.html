@@ -53,20 +53,15 @@
           <td style="font-family:monospace;">11:00 – 12:00</td>
           <td id="chips0" style="font-size:0.75rem;color:#aaa;">—</td>
         </tr><tr id="row1">
-          <td><input type="checkbox" id="s1" name="slot" value="153"></td>
-          <td>jeu. 23 avr.</td>
-          <td style="font-family:monospace;">11:00 – 12:00</td>
-          <td id="chips1" style="font-size:0.75rem;color:#aaa;">—</td>
-        </tr><tr id="row2">
-          <td><input type="checkbox" id="s2" name="slot" value="154"></td>
+          <td><input type="checkbox" id="s1" name="slot" value="154"></td>
           <td>jeu. 23 avr.</td>
           <td style="font-family:monospace;">14:00 – 15:00</td>
-          <td id="chips2" style="font-size:0.75rem;color:#aaa;">—</td>
-        </tr><tr id="row3">
-          <td><input type="checkbox" id="s3" name="slot" value="155"></td>
+          <td id="chips1" style="font-size:0.75rem;color:#aaa;">—</td>
+        </tr><tr id="row2">
+          <td><input type="checkbox" id="s2" name="slot" value="155"></td>
           <td>jeu. 23 avr.</td>
           <td style="font-family:monospace;">15:00 – 16:00</td>
-          <td id="chips3" style="font-size:0.75rem;color:#aaa;">—</td>
+          <td id="chips2" style="font-size:0.75rem;color:#aaa;">—</td>
         </tr>
       </tbody>
     </table>
@@ -90,7 +85,7 @@
 <script>
 const API_URL = 'https://suivi.gregoire13.fr/planif_api.php';
 const POLL_TOKEN = 'b21817ffc7c8';
-const SLOT_IDS   = [152,153,154,155];
+const SLOT_IDS   = [152,154,155];
 
 async function loadExistingVotes() {
   try {
